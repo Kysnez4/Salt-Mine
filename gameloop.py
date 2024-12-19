@@ -1,8 +1,7 @@
 from menu import MenuScene
-from farmerfield import FarmerField
 from scene import SceneManager
-from Cave import CaveScene
-from settings import *
+from cart import CaveScene
+from Object import *
 
 # Example Usage:
 pygame.init()
@@ -10,25 +9,38 @@ screen = pygame.display.set_mode((800, 800))
 
 scene_manager = SceneManager(screen)
 
-# Create and add scenes. Replace with your actual scenes
-game_scene = FarmerField(screen, scene_manager)
 menu_scene = MenuScene(scene_manager)
-cave_scene = CaveScene(screen, scene_manager, tile_images={"grass": loadim("Map/rамень.png"), "plantable": loadim("Map/земля.png")})
+game_scene = CaveScene(screen, scene_manager, tile_images={"grass": loadim("Map/rамень.png"),
+                                                           "plantable": loadim("Map/земля.png"),
+                                                           "wall": loadim("Map/rамень.png")
+                                                           })
+
+cave_scene = CaveScene(screen, scene_manager, tile_images={"grass": loadim("Map/rамень.png"),
+                                                           "plantable": loadim("Map/земля.png"),
+                                                           "wall": loadim("Map/rамень.png")
+                                                           })
+
 
 scene_manager.add_scene("menu", menu_scene)
 scene_manager.add_scene("game", game_scene)
 scene_manager.add_scene("cave", cave_scene)
 
-scene_manager.set_scene("menu") # Start with the menu scene
+scene_manager.set_scene("menu")
 
-running = True
 clock = pygame.time.Clock()
+running = True
+
 while running:
-    dt = clock.tick(60)
+    dt = clock.tick(60) / 1000.0  # Delta time in seconds
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
         scene_manager.handle_input(event)
+        if scene_manager.player:
+            scene_manager.player.run(event)
+
+
     scene_manager.update(dt)
     scene_manager.draw()
     pygame.display.flip()

@@ -54,6 +54,9 @@ class MenuScene(Scene):
     def on_enter(self):
         pass  # You could add some initializations if needed here
 
+    def on_exit(self):
+        pass
+
 
 # Example button class (you might already have one defined)
 class Button:

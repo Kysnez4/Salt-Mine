@@ -1,5 +1,3 @@
-import pygame.transform
-
 from settings import *
 
 class Inventory:
@@ -32,7 +30,7 @@ class Inventory:
                         item.draw(screen, self.x + c * self.slot_size, self.y + r * self.slot_size)
 
     def open_inventory(self):
-        self.inventory_open = not (self.inventory_open)
+        self.inventory_open =  not self.inventory_open
 
     def open_chest(self, chest):
         print(f"Chest opened. Contains: {chest.contents}") # Placeholder - needs chest implementation
@@ -87,7 +85,7 @@ class Hotbar:
             self.active_slot = (self.active_slot + event.y) % 12
 
 
-class Player:
+class Player(pygame.sprite.Sprite):
     # State consts
     IDLE_STATE = 0
     MOVING_STATE = 1
@@ -183,16 +181,38 @@ class Player:
     tool_sheet = None
     item_sheet = None
 
-    def __init__(self, g, s):
-        self.game = g
-        self.screen = s
-        self.spritesheet = loadim("farmer-big.png").convert_alpha()
+    def __init__(self, game, scene):
+        pygame.sprite.Sprite.__init__(self)
+        self.game = game
+        self.scene = scene
+        self.spritesheet = loadim("farmer-big.png")
+        if self.spritesheet is None:
+            print("Error: Could not load farmer-big.png")
+            pygame.quit()
+            quit()
+
         self.frame_rect = pygame.Rect(0, 0, self.FRAME_SIZE[0], self.FRAME_SIZE[1])
-        self.screen_rect = pygame.Rect(self.pos_x, self.pos_y, self.FRAME_SIZE[0], self.FRAME_SIZE[1])
-        self.screen_rect.center = (self.pos_x, self.pos_y)
+        self.image = self.spritesheet.subsurface(self.frame_rect)
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (self.pos_x, self.pos_y)
         self.set_animation(self.IDLE_ANIMATION)
-        self.inventory = Inventory(3, 12, 10, 10, loadim("inventory.png"))
-        self.hotbar = Hotbar(self.inventory, 10, 20, pygame.transform.scale(loadim("Хотбар. Увелич обводка.png"), (700, 200)))
+        self.inventory = Inventory(3, 12, 500, 500, loadim("inventory.png"))
+        self.hotbar = Hotbar(self.inventory, 10, 20,
+                             pygame.transform.scale(loadim("Хотбар. Увелич обводка.png"), (700, 200)))
+        # Added for error handling
+        self.item_sheet = loadim("items.png")  # Replace with your item spritesheet
+        if self.item_sheet is None:
+            print("Error: Could not load items.png")
+            pygame.quit()
+            quit()
+        self.tool_sheet = loadim("tools.png")  # Replace with your tool spritesheet
+        if self.tool_sheet is None:
+            print("Error: Could not load tools.png")
+            pygame.quit()
+            quit()
+
+        self.screen_rect = self.rect.copy()
+
 
 
     def set_frame(self, frame):
@@ -248,11 +268,10 @@ class Player:
             item.use(screen)  # Call the item's use method
 
     def pick_up_item(self, item, distance_threshold=20):
-        distance = ((self.x + self.rect.width // 2) - (item.x + item.rect.width // 2)) ** 2 + ((self.y + self.rect.height // 2) - (item.y + item.rect.height //2)) **2
-        if distance <= distance_threshold**2:
+        distance_sq = (self.rect.centerx - item.rect.centerx) ** 2 + (self.rect.centery - item.rect.centery) ** 2
+        if distance_sq <= distance_threshold ** 2:
             self.inventory.add_item(item)
-            #Remove the item from the world (requires proper management of items in the game world)
-            #item.kill() # Assuming item is part of a sprite group
+            item.kill()  # Remove from sprite groups
 
     def move(self, direction):
         if self.current_state != self.IDLE_STATE and self.current_state != self.MOVING_STATE:
@@ -332,27 +351,38 @@ class Player:
     def update_held_item_rect(self):
         self.item_screen_rect.topleft = (self.pos_x + self.ITEM_OFFSET[0], self.pos_y + self.ITEM_OFFSET[1])
 
-    def update(self):
+    def update(self):  # Removed dt
+        keys = pygame.key.get_pressed()
+        self.running = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]  # simplified running logic
+
+        if keys[pygame.K_s]:
+            self.move(self.DOWN)
+        if keys[pygame.K_w]:
+            self.move(self.UP)
+        if keys[pygame.K_a]:
+            self.move(self.LEFT)
+        if keys[pygame.K_d]:
+            self.move(self.RIGHT)
+        if keys[pygame.K_e]:
+            self.inventory.open_inventory()
+        if not (keys[pygame.K_s] or keys[pygame.K_w] or keys[pygame.K_a] or keys[pygame.K_d]):
+            self.stop_move()
+
         self.update_animation()
+        self.rect.topleft = (self.pos_x, self.pos_y)  # Update rect position
 
     def run(self, event):
         self.hotbar.update(event)
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LSHIFT or event.key == pygame.K_RSHIFT:
-                self.start_running()
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_LSHIFT or event.key == pygame.K_RSHIFT:
-                self.stop_running()
 
-    def draw(self):
-        self.inventory.draw(self.screen)
-        self.hotbar.draw(self.screen)
-        self.screen.blit(self.spritesheet, self.screen_rect, self.frame_rect)
+    def draw(self, screen):  #Takes screen as argument
+        self.inventory.draw(screen)
+        self.hotbar.draw(screen)
+        screen.blit(self.image, self.rect)
 
         if self.current_state == self.SWITCHING_STATE:
-            self.screen.blit(self.tool_sheet, self.tool_screen_rect, self.tool_frame_rect)
+            screen.blit(self.tool_sheet, self.tool_screen_rect, self.tool_frame_rect)
 
         if self.holding:
-            self.screen.blit(self.item_sheet, self.item_screen_rect, self.item_frame_rect)
+            screen.blit(self.item_sheet, self.item_screen_rect, self.item_frame_rect)
 
 
