@@ -57,6 +57,21 @@ def get_image(
         return cache[image_name]
     return image
 
+def read_cave_map(map_file: str) -> list[str]:
+    """ Reads the cave map file and returns a list of strings, where each string
+        represents one row of the cave (first string represents top row), and
+        each character in a string represents a tile.
+
+    Parameters:
+        map_file: The path to the cave map file.
+
+    Returns:
+        A list of strings representing the tiles in the cave map.
+    """
+    with open(map_file, 'r') as file:
+        return [line.strip() for line in file.readlines()]
+
+
 class AbstractGrid(tk.Canvas):
     """ A type of tkinter Canvas that provides support for using the canvas as a
         grid (i.e. a collection of rows and columns). """

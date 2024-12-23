@@ -1,6 +1,8 @@
+import random
 from typing import Optional
 from constants import *
 from support_functions import *
+import os, pickle
 
 class Plant:
     """ Abstract plant class, which implements default behaviour and specifies
@@ -255,10 +257,56 @@ class Player:
         return self._direction
 
 
+class CaveModel:
+    def __init__(self, map_file: str):
+        self._map = read_cave_map(map_file)
+        self._geodes = {} #  позиции жеод
+        self._generate_random_geodes()
+
+    def get_map(self):
+        return self._map
+
+    def get_dimensions(self):
+        return (len(self._map), len(self._map[0]))
+
+    def get_geodes(self):
+        return self._geodes
+
+    def _generate_random_geodes(self):
+        """Generates random geode positions on cave map"""
+        self._geodes.clear()
+        available_positions = []
+        for r, row in enumerate(self._map):
+            for c, tile in enumerate(row):
+                if tile == CAVE_FLOOR:
+                    available_positions.append((r, c))
+        num_geodes = min(5, len(available_positions))
+        random_geode_positions = random.sample(available_positions, num_geodes)
+        for pos in random_geode_positions:
+            self._geodes[pos] = Geode()
+
+    def remove_geode(self, position: tuple[int, int]):
+        if position in self._geodes:
+            self._geodes.pop(position)
+
+
+class Geode:
+     def __init__(self):
+         self._durability = 10 #  прочность 100%
+     def reduce_durability(self, damage: int) -> int: #  метод нанесения урона жеоде
+         self._durability = max(0, self._durability - damage)
+         return self._durability
+
+     def get_durability(self) -> int:
+         return self._durability
+
+     def is_broken(self) -> bool:
+         return self._durability <= 0
+
 class FarmModel:
     """ Represents the model for the farm game. """
 
-    def __init__(self, map_file: str) -> None:
+    def __init__(self, map_file: str, cave_map_file: str) -> None:
         """ Constructor for the farm model.
         
         Parameters:
@@ -268,6 +316,33 @@ class FarmModel:
         self._plants = {}
         self._player = Player()
         self._days_elapsed = 1
+        self._cave = CaveModel(cave_map_file)
+        self._is_in_cave = False #Tracing the character
+
+    def save_game(self, filename="savegame.dat"):
+        """Сохраняет состояние игры в файл."""
+        try:
+            with open(filename, "wb") as f:
+                pickle.dump(self, f)
+            print("Игра сохранена!")
+        except Exception as e:
+            print(f"Ошибка при сохранении игры: {e}")
+
+    @staticmethod
+    def load_game(filename="savegame.dat"):
+        """Загружает состояние игры из файла."""
+        try:
+            if not os.path.exists(filename):
+                return None
+            with open(filename, "rb") as f:
+                loaded_model = pickle.load(f)
+                return loaded_model
+        except (FileNotFoundError, EOFError):  # Добавлено для обработки ошибки если файла нет
+            print("Файл сохранения не найден.")
+            return None
+        except Exception as e:
+            print(f"Ошибка при загрузке игры: {e}")
+            return None
     
     def get_plants(self) -> dict[tuple[int, int], Plant]:
         """ Returns the plants currently on the farm, as a dictionary mapping
@@ -362,38 +437,6 @@ class FarmModel:
         """
         return self.get_player().get_direction()
 
-    def move_player(self, direction: str) -> None:
-        """ Moves the player in the given direction, if possible. Also handles
-            reducing the player's energy appropriately for moving.
-
-        Parameters:
-            direction: The direction to move the player in.
-
-        Pre-condition:
-            direction in {UP, DOWN, LEFT, RIGHT}
-        """
-        # Return early if not enough energy
-        if self._player.get_energy() < MOVE_COST:
-            return
-
-        # Calculate new position
-        move_delta = MOVE_DELTAS[direction]
-        d_row, d_col = move_delta
-        old_row, old_col = self.get_player_position()
-        new_row, new_col = old_row + d_row, old_col + d_col
-
-        # Cap positions at boundaries of map
-        new_row = max(0, min(new_row, self.get_dimensions()[0] - 1))
-        new_col = max(0, min(new_col, self.get_dimensions()[1] - 1))
-
-        # Move player
-        self._player.set_position((new_row, new_col))
-        self._player.set_direction(direction)
-
-        # Reduce energy if the move succeeded
-        if (new_row, new_col) != (old_row, old_col):
-            self._player.reduce_energy(MOVE_COST)
-
     def till_soil(self, position: tuple[int, int]) -> None:
         """ Tills the soil at the given position, if it is untilled soil.
             Reduces the player's energy appropriately.
@@ -440,3 +483,83 @@ class FarmModel:
         if position in self._plants:
             self._player.reduce_energy(REMOVE_COST)
             self._plants.pop(position)
+
+    def get_cave_map(self):  # Receiving the card cave
+        return self._cave.get_map()
+
+    def get_cave_dimensions(self):
+        return self._cave.get_dimensions()
+
+    def get_geodes(self):
+        return self._cave.get_geodes()
+
+    def get_cave(self):
+        return self._cave
+
+    def set_cave(self, cave_map_file: str):
+        self._cave = CaveModel(cave_map_file)
+
+    def set_is_in_cave(self, is_in_cave: bool) -> None:  # Switching the player's location on the map
+        self._is_in_cave = is_in_cave
+
+    def get_is_in_cave(self) -> bool:  # Getting a flag for finding a player on the map
+        return self._is_in_cave
+
+    def break_geode(self, position: tuple[int, int]) -> Optional[str]:
+        """ Breaks the geode at the given position, if there is one that is
+            ready for break. Also handles reducing the player's energy
+            appropriately for breaking.
+            Parameters:
+            position: The position at which to break the geode.
+            Returns:
+            The result of breaking geode, or None if there was no plant at the given position.
+        """
+
+
+        # Return early if not enough energy
+        if self._player.get_energy() < BREAK_GEODE_COST:
+            return None
+
+        if self._cave.get_geodes().get(position) is not None:
+            geode = self._cave.get_geodes()[position]
+            geode.reduce_durability(1)
+            self._player.reduce_energy(BREAK_GEODE_COST)
+            if geode.is_broken():
+                self._cave.remove_geode(position)
+                # 1% give crystal
+                if random.random() <= 0.01:
+                    return random.choice(ITEMS[0:3])
+
+    def move_player(self, direction: str) -> None:
+        """ Moves the player in the given direction, if possible. Also handles
+            reducing the player's energy appropriately for moving.
+        Parameters:
+            direction: The direction to move the player in.
+        Pre-condition:
+            direction in {UP, DOWN, LEFT, RIGHT}
+        """
+        # Return early if not enough energy
+        if self._player.get_energy() < MOVE_COST:
+            return
+        # Calculate new position
+        move_delta = MOVE_DELTAS[direction]
+        d_row, d_col = move_delta
+        old_row, old_col = self.get_player_position()
+        new_row, new_col = old_row + d_row, old_col + d_col
+        if self._is_in_cave == True:
+            # Cap positions at boundaries of cave map
+            new_row = max(0, min(new_row, self.get_cave_dimensions()[0] - 1))
+            new_col = max(0, min(new_col, self.get_cave_dimensions()[1] - 1))
+
+        else:
+            # Cap positions at boundaries of map
+            new_row = max(0, min(new_row, self.get_dimensions()[0] - 1))
+            new_col = max(0, min(new_col, self.get_dimensions()[1] - 1))
+
+        # Move player
+        self._player.set_position((new_row, new_col))
+        self._player.set_direction(direction)
+
+        # Reduce energy if the move succeeded
+        if (new_row, new_col) != (old_row, old_col):
+            self._player.reduce_energy(MOVE_COST)

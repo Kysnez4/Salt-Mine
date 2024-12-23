@@ -3,6 +3,12 @@ GRASS = 'G'
 SOIL = 'S'
 UNTILLED = 'U'
 
+# constants of cave
+CAVE_ENTRANCE = 'E'
+CAVE_FLOOR = 'C'
+STAIRS = 'L'
+GEODE = 'Q'
+
 # Constants related to moving the player
 UP = 'w'
 DOWN = 's'
@@ -31,6 +37,10 @@ IMAGES = {
     UP: 'player_w.png',
     LEFT: 'player_a.png',
     RIGHT: 'player_d.png',
+    CAVE_ENTRANCE: 'cave_entrance.png',
+    CAVE_FLOOR: 'cave_floor.png',
+    STAIRS: 'stairs.png',
+    GEODE: 'geode.png',
 }
 
 # Fonts
@@ -49,6 +59,7 @@ PLANT_COST = 2
 REMOVE_COST = 2
 TILL_COST = 3
 UNTILL_COST = 3
+BREAK_GEODE_COST = 4
 
 # All seeds available in the game
 SEEDS = [
